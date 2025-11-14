@@ -48,7 +48,9 @@ const SolverHubPage = () => {
     population_size: 30,
     max_iterations: 50,
     num_runs: 1,
-    timeout_seconds: 600
+    timeout_seconds: 600,
+    pool_size: 10,
+    use_final_population: true
   });
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -116,10 +118,10 @@ const SolverHubPage = () => {
   };
 
   const handleIaoaChange = (evt: ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = evt.target;
+    const { name, value, type, checked } = evt.target;
     setIaoaConfig((prev) => ({
       ...prev,
-      [name]: Number(value)
+      [name]: type === "checkbox" ? checked : Number(value)
     }));
   };
 
@@ -229,56 +231,91 @@ const statusBadge = (status: string) => {
             </label>
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
-            <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              <span>Population Size</span>
-              <input
-                type="number"
-                min={5}
-                max={200}
-                name="population_size"
-                value={iaoaConfig.population_size}
-                onChange={handleIaoaChange}
-                style={{ borderRadius: "8px", border: "1px solid #d1d5db", padding: "10px" }}
-              />
-            </label>
-            <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              <span>Max Iterations</span>
-              <input
-                type="number"
-                min={10}
-                max={500}
-                name="max_iterations"
-                value={iaoaConfig.max_iterations}
-                onChange={handleIaoaChange}
-                style={{ borderRadius: "8px", border: "1px solid #d1d5db", padding: "10px" }}
-              />
-            </label>
-            <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              <span>Runs</span>
-              <input
-                type="number"
-                min={1}
-                max={10}
-                name="num_runs"
-                value={iaoaConfig.num_runs}
-                onChange={handleIaoaChange}
-                style={{ borderRadius: "8px", border: "1px solid #d1d5db", padding: "10px" }}
-              />
-            </label>
-            <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              <span>Timeout (s)</span>
-              <input
-                type="number"
-                min={60}
-                max={3600}
-                name="timeout_seconds"
-                value={iaoaConfig.timeout_seconds}
-                onChange={handleIaoaChange}
-                style={{ borderRadius: "8px", border: "1px solid #d1d5db", padding: "10px" }}
-              />
-            </label>
-          </div>
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
+              <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <span>Population Size</span>
+                <input
+                  type="number"
+                  min={5}
+                  max={200}
+                  name="population_size"
+                  value={iaoaConfig.population_size}
+                  onChange={handleIaoaChange}
+                  style={{ borderRadius: "8px", border: "1px solid #d1d5db", padding: "10px" }}
+                />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <span>Max Iterations</span>
+                <input
+                  type="number"
+                  min={10}
+                  max={500}
+                  name="max_iterations"
+                  value={iaoaConfig.max_iterations}
+                  onChange={handleIaoaChange}
+                  style={{ borderRadius: "8px", border: "1px solid #d1d5db", padding: "10px" }}
+                />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <span>Runs</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={10}
+                  name="num_runs"
+                  value={iaoaConfig.num_runs}
+                  onChange={handleIaoaChange}
+                  style={{ borderRadius: "8px", border: "1px solid #d1d5db", padding: "10px" }}
+                />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <span>Timeout (s)</span>
+                <input
+                  type="number"
+                  min={60}
+                  max={3600}
+                  name="timeout_seconds"
+                  value={iaoaConfig.timeout_seconds}
+                  onChange={handleIaoaChange}
+                  style={{ borderRadius: "8px", border: "1px solid #d1d5db", padding: "10px" }}
+                />
+              </label>
+            </div>
+            <div style={{ marginTop: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
+              <h3 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 600 }}>Solution Pool Options</h3>
+              <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <input
+                  type="checkbox"
+                  name="use_final_population"
+                  checked={iaoaConfig.use_final_population}
+                  onChange={(evt) => setIaoaConfig((prev) => ({ ...prev, use_final_population: evt.target.checked }))}
+                />
+                <span>Use Final Population Pool (single run only)</span>
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <span>Pool Size</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  name="pool_size"
+                  value={iaoaConfig.pool_size}
+                  onChange={handleIaoaChange}
+                  disabled={!iaoaConfig.use_final_population || iaoaConfig.num_runs > 1}
+                  style={{ 
+                    borderRadius: "8px", 
+                    border: "1px solid #d1d5db", 
+                    padding: "10px",
+                    opacity: (!iaoaConfig.use_final_population || iaoaConfig.num_runs > 1) ? 0.5 : 1
+                  }}
+                />
+                <span style={{ fontSize: "0.85rem", color: "#6b7280" }}>
+                  Number of solutions to return from final population
+                </span>
+              </label>
+            </div>
+          </>
         )}
 
         <button

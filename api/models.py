@@ -92,6 +92,11 @@ class IAOAGNSRunConfig(BaseModel):
     max_iterations: int = Field(50, ge=10, le=500)
     num_runs: int = Field(1, ge=1, le=10)
     timeout_seconds: float = Field(600.0, gt=0)
+<<<<<<< HEAD
+=======
+    pool_size: int = Field(10, ge=1, le=20, description="Number of solutions to return from final population")
+    use_final_population: bool = Field(True, description="Return top-K from final population (single run only)")
+>>>>>>> 225dbaf0fb8c557e0741a478ccd094a3b257cba8
 
 
 class SolverRunRequest(BaseModel):

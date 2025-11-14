@@ -20,10 +20,8 @@ from validation_csv import enrich_solution_csv, generate_gantt_from_df, validate
 from fjsp_app.backend.transform import openai_json_to_npy
 from fjsp_app.backend.validation import validate_schedule_for_ppo
 from fjsp_app.core.iaoa_gns import IAOAGNSAlgorithm, IAOAConfig
-from fjsp_app.core.problem_adapter import (
-    solution_to_yuchu_format,
-    yuchu_json_to_problem_instance,
-)
+from fjsp_app.core.iaoa_gns_pool import solve_with_pool, save_solution_pool_csv
+from fjsp_app.core.problem_adapter import yuchu_json_to_problem_instance
 
 from api.models import IAOAGNSRunConfig, PPORunConfig
 
@@ -234,47 +232,89 @@ def solve_with_ppo(schedule_json: Dict[str, Any], config: PPORunConfig) -> Dict[
 
 def solve_with_iaoa_gns(schedule_json: Dict[str, Any], config: IAOAGNSRunConfig) -> Dict[str, Any]:
     problem = yuchu_json_to_problem_instance(schedule_json)
-    algorithm = IAOAGNSAlgorithm(
-        IAOAConfig(
-            pop_size=config.population_size,
-            max_iterations=config.max_iterations,
-        )
+    iaoa_config = IAOAConfig(
+        pop_size=config.population_size,
+        max_iterations=config.max_iterations,
+    )
+
+    # Solve with solution pool support
+    pool_result = solve_with_pool(
+        problem=problem,
+        config=iaoa_config,
+        num_runs=config.num_runs,
+        pool_size=config.pool_size,
+        use_final_population=config.use_final_population and config.num_runs == 1
     )
 
     results: List[float] = []
     artifacts: List[RunArtifact] = []
+    _ensure_dir(_resolve("solution_pools"))
+    ts = time.strftime("%Y%m%d_%H%M%S")
 
-    for run in range(1, config.num_runs + 1):
-        solution = algorithm.solve(problem, verbose=False, timeout=config.timeout_seconds)
-        makespan = float(solution.makespan)
-        results.append(makespan)
-
-        solution_data = solution_to_yuchu_format(solution, problem, schedule_json)
-        df = pd.DataFrame(solution_data["schedule"])
-        _ensure_dir(_resolve("solution_pools"))
-        ts = time.strftime("%Y%m%d_%H%M%S")
-        pool_csv = _resolve(f"solution_pools/iaoa_solution_pool_{ts}_run{run}.csv")
-        df.to_csv(pool_csv, index=False)
-
+    # Handle single-run with final population vs multi-run
+    if config.num_runs == 1 and config.use_final_population:
+        # Single run: all solutions in one CSV
+        solutions = pool_result['solutions']
+        pool_csv_path = f"solution_pools/solution_pool_{ts}_run1.csv"
+        pool_csv = _resolve(pool_csv_path)
+        rows_written = save_solution_pool_csv(solutions, str(pool_csv), base_instance_id=1)
+        
+        # Generate one Gantt chart for all solutions (or first solution)
         gantt_output = None
-        if not df.empty:
-            df_enriched = enrich_solution_csv(pool_csv, schedule_json)
-            if df_enriched is not None:
+        if pool_csv.exists():
+            df_enriched = enrich_solution_csv(str(pool_csv), schedule_json)
+            if df_enriched is not None and not df_enriched.empty:
+                best_makespan = pool_result['best_makespan']
                 gantt_output = generate_gantt_from_df(
                     df_enriched,
-                    title=f"IAOA+GNS Run {run} - Makespan: {makespan}",
+                    title=f"IAOA+GNS Pool (Best: {best_makespan:.2f})",
                 )
-
+        
         gantt_output = _normalize_artifact_path(gantt_output)
-
-        artifact = RunArtifact(
-            run_number=run,
-            makespan=makespan,
-            gantt_file=gantt_output,
-            pool_csv=str(pool_csv),
-            pool_rows=len(df),
-        )
-        artifacts.append(artifact)
+        
+        # Create artifact for each solution (all share same CSV)
+        for idx, solution in enumerate(solutions):
+            makespan = float(solution.makespan)
+            results.append(makespan)
+            
+            artifact = RunArtifact(
+                run_number=1,
+                makespan=makespan,
+                gantt_file=gantt_output if idx == 0 else None,  # Only first solution gets gantt
+                pool_csv=str(pool_csv),
+                pool_rows=rows_written,
+            )
+            artifacts.append(artifact)
+    else:
+        # Multi-run: one CSV per run
+        for run in range(config.num_runs):
+            run_solutions = pool_result['solutions'][run:run+1] if config.num_runs > 1 else pool_result['solutions']
+            solution = run_solutions[0]
+            makespan = float(solution.makespan)
+            results.append(makespan)
+            
+            pool_csv = _resolve(f"solution_pools/solution_pool_{ts}_run{run+1}.csv")
+            rows_written = save_solution_pool_csv(run_solutions, str(pool_csv), base_instance_id=run+1)
+            
+            gantt_output = None
+            if pool_csv.exists():
+                df_enriched = enrich_solution_csv(str(pool_csv), schedule_json)
+                if df_enriched is not None:
+                    gantt_output = generate_gantt_from_df(
+                        df_enriched,
+                        title=f"IAOA+GNS Run {run+1} - Makespan: {makespan}",
+                    )
+            
+            gantt_output = _normalize_artifact_path(gantt_output)
+            
+            artifact = RunArtifact(
+                run_number=run + 1,
+                makespan=makespan,
+                gantt_file=gantt_output,
+                pool_csv=str(pool_csv),
+                pool_rows=rows_written,
+            )
+            artifacts.append(artifact)
 
     snapshot = _save_solution_snapshot(artifacts, schedule_json)
     summary = {

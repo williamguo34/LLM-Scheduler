@@ -65,6 +65,68 @@ const SettingsPage = () => {
 
       <section style={cardStyle}>
         <h2 style={{ margin: 0, fontSize: "1.1rem" }}>LLM</h2>
+        <div style={{ display: "flex", gap: "12px", marginBottom: "16px", flexWrap: "wrap" }}>
+          <button
+            onClick={() =>
+              updateSettings({
+                modelName: "Pro/deepseek-ai/DeepSeek-V3.2-Exp",
+                apiKey: "sk-zhmjtdpqtkpsddfccwwbhkbikyhvtyxlcqwbqwtoivcsnebg",
+                baseUrl: "https://api.siliconflow.cn/v1"
+              })
+            }
+            style={{
+              padding: "8px 16px",
+              borderRadius: "6px",
+              border: "1px solid #3b82f6",
+              backgroundColor: "#3b82f6",
+              color: "white",
+              cursor: "pointer",
+              fontSize: "0.9rem"
+            }}
+          >
+            🔵 DeepSeek-V3.2-Exp
+          </button>
+          <button
+            onClick={() =>
+              updateSettings({
+                modelName: "gpt-4o",
+                apiKey: "",
+                baseUrl: "https://models.inference.ai.azure.com"
+              })
+            }
+            style={{
+              padding: "8px 16px",
+              borderRadius: "6px",
+              border: "1px solid #10b981",
+              backgroundColor: "#10b981",
+              color: "white",
+              cursor: "pointer",
+              fontSize: "0.9rem"
+            }}
+          >
+            🟢 OpenAI (Default)
+          </button>
+          <button
+            onClick={() =>
+              updateSettings({
+                modelName: "",
+                apiKey: "",
+                baseUrl: ""
+              })
+            }
+            style={{
+              padding: "8px 16px",
+              borderRadius: "6px",
+              border: "1px solid #6b7280",
+              backgroundColor: "transparent",
+              color: "#6b7280",
+              cursor: "pointer",
+              fontSize: "0.9rem"
+            }}
+          >
+            🔄 Clear All
+          </button>
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "16px" }}>
           <label style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
             <span>Model Name</span>

@@ -460,7 +460,7 @@ class IAOAGNSAlgorithm:
         """Return the algorithm name."""
         return "IAOA+GNS"
     
-    def solve(self, problem: ProblemInstance, verbose: bool = False, timeout: float = 300.0):
+    def solve(self, problem: ProblemInstance, verbose: bool = False, timeout: float = 300.0, return_population: bool = False):
         """
         Solve POFJSP instance using IAOA+GNS.
         
@@ -468,52 +468,51 @@ class IAOAGNSAlgorithm:
             problem: Problem instance to solve
             verbose: Enable detailed logging
             timeout: Maximum execution time in seconds
+            return_population: If True, return tuple (best_solution, final_population)
             
         Returns:
-            Best solution found
+            Best solution found, or (best_solution, final_population) if return_population=True
         """
-        try:
-            start_time = time.time()
+        start_time = time.time()
+        
+        logger.info(f"Starting IAOA+GNS on problem: {problem}")
+        
+        # Initialize population
+        population = self._initialize_population(problem, verbose)
+        best_solution = min(population, key=lambda s: s.makespan)
+        initial_makespan = best_solution.makespan
+        
+        if verbose:
+            print(f"Initial best makespan: {initial_makespan:.2f}")
+        
+        # Main optimization loop
+        iteration = 0
+        for iteration in range(self.config.max_iterations):
+            # Check timeout
+            if time.time() - start_time > timeout:
+                if verbose:
+                    print(f"Timeout reached at iteration {iteration}")
+                break
+            moa = self._calculate_moa(iteration)
             
-            logger.info(f"Starting IAOA+GNS on problem: {problem}")
+            population = self._evolve_population(
+                population, best_solution, moa, problem, verbose, iteration
+            )
             
-            # Initialize population
-            population = self._initialize_population(problem, verbose)
-            best_solution = min(population, key=lambda s: s.makespan)
-            initial_makespan = best_solution.makespan
-            
-            if verbose:
-                print(f"Initial best makespan: {initial_makespan:.2f}")
-            
-            # Main optimization loop
-            iteration = 0
-            for iteration in range(self.config.max_iterations):
-                # Check timeout
-                if time.time() - start_time > timeout:
-                    if verbose:
-                        print(f"Timeout reached at iteration {iteration}")
-                    break
-                moa = self._calculate_moa(iteration)
-                
-                population = self._evolve_population(
-                    population, best_solution, moa, problem, verbose, iteration
-                )
-                
-                # Update best solution
-                current_best = min(population, key=lambda s: s.makespan)
-                if current_best.makespan < best_solution.makespan:
-                    best_solution = copy.deepcopy(current_best)
-                    if verbose:
-                        improvement = ((initial_makespan - best_solution.makespan) / initial_makespan) * 100
-                        print(f"Iter {iteration + 1}: New best = {best_solution.makespan:.2f} "
-                              f"({improvement:.1f}% improvement)")
-            
-            logger.info(f"Algorithm completed. Final makespan: {best_solution.makespan:.2f}")
-            
-            return best_solution
-            
-        except Exception as e:
-            raise AlgorithmError(f"IAOA+GNS algorithm failed: {e}")
+            # Update best solution
+            current_best = min(population, key=lambda s: s.makespan)
+            if current_best.makespan < best_solution.makespan:
+                best_solution = copy.deepcopy(current_best)
+                if verbose:
+                    improvement = ((initial_makespan - best_solution.makespan) / initial_makespan) * 100
+                    print(f"Iter {iteration + 1}: New best = {best_solution.makespan:.2f} "
+                          f"({improvement:.1f}% improvement)")
+        
+        logger.info(f"Algorithm completed. Final makespan: {best_solution.makespan:.2f}")
+        
+        if return_population:
+            return best_solution, population
+        return best_solution
     
     def _initialize_population(self, problem: ProblemInstance, verbose: bool) -> List[Solution]:
         """Initialize population with diverse solutions."""

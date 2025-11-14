@@ -14,6 +14,8 @@ export interface RunSolverPayload {
     max_iterations: number;
     num_runs: number;
     timeout_seconds: number;
+    pool_size?: number;
+    use_final_population?: boolean;
   };
 }
 
