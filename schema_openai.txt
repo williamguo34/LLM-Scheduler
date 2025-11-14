@@ -1,0 +1,59 @@
+{
+  "name": "scheduling_problem",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+        "J": {
+        "type": "integer",
+        "description": "Total number of jobs"
+        },
+        "M": {
+        "type": "integer",
+        "description": "Total number of machines"
+        },
+        "instances": {
+        "type": "array",
+        "items": {
+            "type": "object",
+            "properties": {
+            "job_id": { "type": "integer" },
+            "job_n": { "type": "string" },
+            "operations": {
+                "type": "array",
+                "items": {
+                "type": "object",
+                "properties": {
+                    "op_id": { "type": "integer" },
+                    "op_n": { "type": "string" },
+                    "pre": {
+                    "type": "array",
+                    "items": { "type": "integer" }
+                    },
+                    "re": {
+                    "anyOf": [
+                        {
+                        "type": "string",
+                        "description": "Alternative machine assignment. Format: 'machine_id:time|machine_id:time'."
+                        },
+                        {
+                        "type": "string",
+                        "description": "Simultaneous machine assignment. Format: 'machine_id&machine_id:time'."
+                        }
+                    ]
+                    }
+                },
+                "required": ["op_id", "op_n", "pre", "re"],
+                "additionalProperties": false
+                }
+            }
+            },
+            "required": ["job_id", "job_n", "operations"],
+            "additionalProperties": false
+        }
+        }
+    },
+    "required": ["J", "M", "instances"],
+    "additionalProperties": false
+    }
+}
