@@ -14,7 +14,9 @@ Please DO NOT generate any other code. Only return the JSON structure as specifi
    - `"&"` to represent **simultaneous** machine assignments (e.g., `"1&2:12"`).  
 5. **Include `job_id`, `job_n`, `op_n`, `op_id`, and `pre` in the JSON output for each job and operation.**  
    - The `pre` attribute should be a list of integers representing the `op_id`s whose operations must be processed before the current operation.  
-6. **Return only the JSON output, in the exact format specified below. Do not generate any other text.**
+6. **Return only the JSON output in the exact format specified below. Do not generate any other text.**
+7. **The `instances` array must be a single flat list of jobs** (no additional nesting).
+8. **Always return fully expanded JSON values**—never use Python/JS code, list comprehensions, or string templates.
 
 ---
 
@@ -51,25 +53,23 @@ id,name,working_time_per_day,setup_time
   "J": 2,
   "M": 6,
   "instances": [
-    [
-      {
-        "job_id": 1,
-        "job_n": "Car Frame",
-        "operations": [
-          {"op_id": 1, "op_n": "Cutting", "re": "1:10|2:15", "pre": []},
-          {"op_id": 2, "op_n": "Welding", "re": "3:20", "pre": [1]}
-        ]
-      },
-      {
-        "job_id": 2,
-        "job_n": "Engine Assembly",
-        "operations": [
-          {"op_id": 1, "op_n": "Drilling", "re": "4&2:25", "pre": []},
-          {"op_id": 2, "op_n": "Bolting", "re": "5:18|6:22", "pre": [3]},
-          {"op_id": 3, "op_n": "Welding", "re": "5:20", "pre": [1]}
-        ]
-      }
-    ]
+    {
+      "job_id": 1,
+      "job_n": "Car Frame",
+      "operations": [
+        {"op_id": 1, "op_n": "Cutting", "re": "1:10|2:15", "pre": []},
+        {"op_id": 2, "op_n": "Welding", "re": "3:20", "pre": [1]}
+      ]
+    },
+    {
+      "job_id": 2,
+      "job_n": "Engine Assembly",
+      "operations": [
+        {"op_id": 1, "op_n": "Drilling", "re": "4&2:25", "pre": []},
+        {"op_id": 2, "op_n": "Bolting", "re": "5:18|6:22", "pre": [3]},
+        {"op_id": 3, "op_n": "Welding", "re": "5:20", "pre": [1]}
+      ]
+    }
   ]
 }
 ```  

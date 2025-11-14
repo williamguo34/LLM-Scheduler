@@ -23,6 +23,103 @@ class LLMServiceError(RuntimeError):
 logger = logging.getLogger(__name__)
 
 
+def _extract_schedule_from_failed_generation(text: Optional[str]) -> Optional[Dict[str, Any]]:
+    if not text:
+        return None
+    marker = "schedule_json"
+    idx = text.find(marker)
+    if idx == -1:
+        return None
+    idx = text.find("=", idx)
+    if idx == -1:
+        return None
+    idx = text.find("{", idx)
+    if idx == -1:
+        return None
+    brace_level = 0
+    end = None
+    for pos in range(idx, len(text)):
+        char = text[pos]
+        if char == "{":
+            brace_level += 1
+        elif char == "}":
+            brace_level -= 1
+            if brace_level == 0:
+                end = pos + 1
+                break
+    if end is None:
+        return None
+    json_str = text[idx:end]
+    try:
+        return json.loads(json_str)
+    except Exception:
+        return None
+
+
+def _build_mock_response(schedule_json: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "choices": [
+            {
+                "message": {
+                    "tool_calls": [
+                        {
+                            "function": {
+                                "name": "synthetic_schedule_json",
+                                "arguments": json.dumps({"schedule_json": schedule_json}),
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+
+
+def _extract_failed_generation(exc: Exception) -> Optional[str]:
+    payload: Any = None
+    response = getattr(exc, "response", None)
+    if response is not None:
+        try:
+            payload = response.json()
+        except Exception:
+            try:
+                content = getattr(response, "content", None)
+                if isinstance(content, (bytes, bytearray)):
+                    payload = json.loads(content.decode("utf-8"))
+            except Exception:
+                payload = None
+    if payload is None:
+        payload = getattr(exc, "body", None)
+        if isinstance(payload, (bytes, bytearray)):
+            try:
+                payload = json.loads(payload.decode("utf-8"))
+            except Exception:
+                payload = None
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+            except Exception:
+                payload = None
+
+    if isinstance(payload, dict):
+        failed = payload.get("failed_generation")
+        if failed:
+            return failed
+        error_block = payload.get("error")
+        if isinstance(error_block, dict):
+            failed = error_block.get("failed_generation")
+            if failed:
+                return failed
+    return None
+
+
+def _format_llm_error(exc: Exception) -> str:
+    failed = _extract_failed_generation(exc)
+    if failed:
+        return f"{exc} | failed_generation: {failed}"
+    return str(exc)
+
+
 def _project_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
@@ -105,7 +202,11 @@ def _invoke_function_or_tool(
     except Exception as exc:
         logger.warning("Tool call failed for %s: %s", function_name, exc)
         if not _is_legacy_function_unsupported(exc):
-            raise LLMServiceError(f"LLM tool call failed: {exc}") from exc
+            failed = _extract_schedule_from_failed_generation(_extract_failed_generation(exc))
+            if failed is not None:
+                logger.info("Using failed_generation payload for %s (tool call).", function_name)
+                return _build_mock_response(failed)
+            raise LLMServiceError(f"LLM tool call failed: {_format_llm_error(exc)}") from exc
     try:
         return client.chat.completions.create(
             model=model,
@@ -115,7 +216,11 @@ def _invoke_function_or_tool(
         )
     except Exception as exc:
         logger.error("Function call fallback also failed for %s: %s", function_name, exc)
-        raise LLMServiceError(f"LLM function call failed: {exc}") from exc
+        failed = _extract_schedule_from_failed_generation(_extract_failed_generation(exc))
+        if failed is not None:
+            logger.info("Using failed_generation payload for %s (function call).", function_name)
+            return _build_mock_response(failed)
+        raise LLMServiceError(f"LLM function call failed: {_format_llm_error(exc)}") from exc
 
 
 def generate_schedule_json(

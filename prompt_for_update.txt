@@ -7,6 +7,7 @@
 4. **Make minimal changes** - only modify what the user requests.
 5. **Maintain all JSON schema requirements** from the original system prompt.
 6. **Return ONLY the updated JSON** with no additional text or explanations.
+7. **The `instances` array must remain a single flat list of job objects (no nested arrays).**
 
 ### **Key Considerations:**
 - **Machine assignments**: Maintain correct `re` format (single: `id:time`, alternatives: `id1:time1|id2:time2`, simultaneous: `id1&id2:time`)
