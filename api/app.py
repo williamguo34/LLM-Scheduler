@@ -46,6 +46,7 @@ from api.services.llm_service import (
     generate_schedule_json,
     load_schedule_schema,
     update_schedule_json,
+    update_schedule_patch,
     update_solution_csv_llm,
 )
 from api.services.run_registry import RUN_REGISTRY
@@ -95,6 +96,22 @@ def api_generate_schedule(request: LLMGenerateRequest) -> Dict[str, Any]:
 def api_update_schedule(request: LLMUpdateRequest) -> Dict[str, Any]:
     try:
         schedule = update_schedule_json(
+            current_json=request.current_json,
+            instruction=request.instruction,
+            previous_messages=[msg.dict() for msg in request.previous_messages or []],
+            model=request.model,
+            api_key=request.api_key,
+            base_url=request.base_url,
+        )
+        return {"schedule_json": schedule}
+    except LLMServiceError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/schedules/update_patch")
+def api_update_schedule_patch(request: LLMUpdateRequest) -> Dict[str, Any]:
+    try:
+        schedule = update_schedule_patch(
             current_json=request.current_json,
             instruction=request.instruction,
             previous_messages=[msg.dict() for msg in request.previous_messages or []],

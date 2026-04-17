@@ -51,6 +51,11 @@ export async function updateSchedule(payload: UpdateSchedulePayload): Promise<Sc
   return data.schedule_json as ScheduleJSON;
 }
 
+export async function updateSchedulePatch(payload: UpdateSchedulePayload): Promise<ScheduleJSON> {
+  const { data } = await client.post("/schedules/update_patch", payload);
+  return data.schedule_json as ScheduleJSON;
+}
+
 export async function decideRoute(payload: DecisionPayload): Promise<string> {
   const { data } = await client.post("/llm/route", payload);
   return data.decision as string;

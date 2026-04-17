@@ -3,7 +3,7 @@ from openai import OpenAI
 
 # ---------------- Credential helpers -----------------
 def _get_api_key():
-    return st.session_state.get('OPENAI_API_KEY') or os.environ.get('OPENAI_API_KEY') or "REDACTED_TOKEN"
+    return st.session_state.get('OPENAI_API_KEY') or os.environ.get('OPENAI_API_KEY')
 
 def _get_base_url():
     return st.session_state.get('OPENAI_BASE_URL') or os.environ.get('OPENAI_BASE_URL') or 'https://models.inference.ai.azure.com'

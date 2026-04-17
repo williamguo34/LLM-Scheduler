@@ -9,11 +9,14 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 from openai import OpenAI
 
+from api.services.patch_service import PatchApplicationError, apply_schedule_patches
 
 DEFAULT_BASE_URL = "https://models.inference.ai.azure.com"
 PROMPT_FILE = "prompt_openai.txt"
 PROMPT_UPDATE_FILE = "prompt_for_update.txt"
+PROMPT_PATCH_FILE = "prompt_for_patch.txt"
 SCHEMA_FILE = "schema_openai.txt"
+PATCH_SCHEMA_FILE = "patch_schema.txt"
 
 
 class LLMServiceError(RuntimeError):
@@ -142,6 +145,15 @@ def _load_schema() -> Dict[str, Any]:
     with schema_path.open("r", encoding="utf-8") as handle:
         payload = json.load(handle)
     return payload.get("schema", payload)
+
+
+def _load_patch_schema() -> Dict[str, Any]:
+    schema_path = _resolve_project_path(PATCH_SCHEMA_FILE)
+    if not schema_path.exists():
+        raise LLMServiceError(f"Missing patch schema file: {schema_path}")
+    with schema_path.open("r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    return payload
 
 
 def _build_client(api_key: Optional[str], base_url: Optional[str]) -> OpenAI:
@@ -297,6 +309,48 @@ def update_schedule_json(
     return _extract_schedule_json(response)
 
 
+def update_schedule_patch(
+    current_json: Dict[str, Any],
+    instruction: str,
+    previous_messages: Optional[List[Dict[str, str]]] = None,
+    model: Optional[str] = None,
+    api_key: Optional[str] = None,
+    base_url: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Request a minimal JSON patch and apply it to the schedule."""
+
+    client = _build_client(api_key, base_url)
+    system_prompt = _load_file_text(PROMPT_PATCH_FILE)
+    patch_schema = _load_patch_schema()
+    model_name = model or "gpt-4o"
+
+    messages: List[Dict[str, Any]] = [{"role": "system", "content": system_prompt}]
+    if previous_messages:
+        messages.extend(previous_messages)
+    messages.extend(
+        [
+            {"role": "assistant", "content": "CURRENT SCHEDULE JSON:"},
+            {"role": "assistant", "content": json.dumps(current_json)},
+            {"role": "user", "content": instruction},
+        ]
+    )
+
+    response = _invoke_function_or_tool(
+        client,
+        model=model_name,
+        messages=messages,
+        function_name="update_schedule_patch",
+        description="Return a JSON patch (patches array) describing minimal updates to the schedule.",
+        parameters=patch_schema,
+    )
+
+    patch_payload = _extract_patch_payload(response)
+    try:
+        return apply_schedule_patches(current_json, patch_payload)
+    except PatchApplicationError as exc:
+        raise LLMServiceError(f"Failed to apply LLM patches: {exc}") from exc
+
+
 def update_solution_csv_llm(
     csv_path: str,
     instruction: str,
@@ -426,3 +480,51 @@ def _extract_schedule_json(response: Any) -> Dict[str, Any]:
     if not required_keys.issubset(payload.keys()):
         raise LLMServiceError("schedule_json missing required keys J/M/instances")
     return payload
+
+
+def _extract_patch_payload(response: Any) -> Dict[str, Any]:
+    try:
+        choice = response.choices[0]
+        message = choice.message
+    except Exception as exc:
+        raise LLMServiceError(f"Malformed LLM response: {exc}") from exc
+
+    args: Any = None
+    function_call = getattr(message, "function_call", None)
+    tool_calls = getattr(message, "tool_calls", None)
+
+    if not function_call and isinstance(message, dict):
+        function_call = message.get("function_call")
+    if function_call and not isinstance(function_call, dict):
+        function_call = {
+            "name": getattr(function_call, "name", None),
+            "arguments": getattr(function_call, "arguments", None),
+        }
+
+    if function_call:
+        args = function_call.get("arguments")
+    elif tool_calls:
+        tool_call = tool_calls[0]
+        if isinstance(tool_call, dict):
+            fn = tool_call.get("function")
+        else:
+            fn = getattr(tool_call, "function", None)
+        if fn:
+            if not isinstance(fn, dict):
+                fn = {
+                    "name": getattr(fn, "name", None),
+                    "arguments": getattr(fn, "arguments", None),
+                }
+            args = fn.get("arguments")
+    elif isinstance(message, dict):
+        args = message.get("content")
+
+    if isinstance(args, str):
+        try:
+            args = json.loads(args)
+        except json.JSONDecodeError as exc:
+            raise LLMServiceError(f"Failed to decode LLM arguments: {exc}") from exc
+
+    if isinstance(args, dict) and "patches" in args:
+        return args
+    raise LLMServiceError("LLM response missing patches")

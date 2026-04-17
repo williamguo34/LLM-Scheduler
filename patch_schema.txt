@@ -1,0 +1,85 @@
+{
+  "type": "object",
+  "properties": {
+    "patches": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "oneOf": [
+          {
+            "properties": {
+              "op": { "const": "update_operation" },
+              "job_id": { "type": "integer" },
+              "op_id": { "type": "integer" },
+              "set": {
+                "type": "object",
+                "properties": {
+                  "op_n": { "type": "string" },
+                  "re": { "type": "string" },
+                  "pre": {
+                    "type": "array",
+                    "items": { "type": "integer" }
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "required": ["op", "job_id", "op_id", "set"],
+            "additionalProperties": false
+          },
+          {
+            "properties": {
+              "op": { "const": "add_operation" },
+              "job_id": { "type": "integer" },
+              "operation": { "$ref": "#/definitions/operation" }
+            },
+            "required": ["op", "job_id", "operation"],
+            "additionalProperties": false
+          },
+          {
+            "properties": {
+              "op": { "const": "delete_operation" },
+              "job_id": { "type": "integer" },
+              "op_id": { "type": "integer" }
+            },
+            "required": ["op", "job_id", "op_id"],
+            "additionalProperties": false
+          },
+          {
+            "properties": {
+              "op": { "const": "update_job" },
+              "job_id": { "type": "integer" },
+              "set": {
+                "type": "object",
+                "properties": {
+                  "job_n": { "type": "string" }
+                },
+                "additionalProperties": false
+              }
+            },
+            "required": ["op", "job_id", "set"],
+            "additionalProperties": false
+          }
+        ]
+      }
+    }
+  },
+  "required": ["patches"],
+  "additionalProperties": false,
+  "definitions": {
+    "operation": {
+      "type": "object",
+      "properties": {
+        "op_id": { "type": "integer" },
+        "op_n": { "type": "string" },
+        "re": { "type": "string" },
+        "pre": {
+          "type": "array",
+          "items": { "type": "integer" }
+        }
+      },
+      "required": ["op_id", "op_n", "re", "pre"],
+      "additionalProperties": false
+    }
+  }
+}
